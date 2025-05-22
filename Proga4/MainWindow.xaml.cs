@@ -1,103 +1,73 @@
 ﻿using System;
 using System.ComponentModel;
 using System.Windows.Input;
+using System.Media;
 
 namespace Proga4
 {
     public class GameViewModel : INotifyPropertyChanged
     {
-        private string _userInput;
-        private string _message;
-        private int _targetNumber;
-        private int _attempts;
-
-        public string UserInput
-        {
-            get => _userInput;
-            set
-            {
-                _userInput = value;
-                OnPropertyChanged(nameof(UserInput));
-            }
-        }
-
-        public string Message
-        {
-            get => _message;
-            set
-            {
-                _message = value;
-                OnPropertyChanged(nameof(Message));
-            }
-        }
-
-        public string AttemptsText => $"Количество попыток: {_attempts}";
-
+        public int Target, Attempts;
+        public string AttemptsText => $"Попытки: {Attempts}";
+        public string UserInput { get; set; }
+        public string Message { get; set; }
         public ICommand CheckCommand { get; }
+        public ICommand NewGameCommand { get; }
 
         public GameViewModel()
         {
-            NewGame();
-            CheckCommand = new RelayCommand(CheckGuess);
+            CheckCommand = new RelayCommand(Check);
+            NewGameCommand = new RelayCommand(Start);
+            Start();
         }
 
-        private void NewGame()
+        private void PlaySound()
         {
-            Random rand = new Random();
-            _targetNumber = rand.Next(1, 101);
-            _attempts = 0;
+            SoundPlayer player = new SoundPlayer("C:/Users/vladz/звук.wav"); 
+            player.Play();
+        }
+
+        public void Start()
+        {
+            Target = new Random().Next(1, 101);
+            Attempts = 0;
             UserInput = "";
-            Message = "";
-            OnPropertyChanged(nameof(AttemptsText));
+            Message = "Попробуйте угадать число!";
+            Notify();
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(UserInput)));
         }
 
-        private void CheckGuess()
+        public void Check()
         {
-            if (!int.TryParse(UserInput, out int guess))
+            int guess;
+            if (!int.TryParse(UserInput, out guess)) { Message = "Ошибка!"; Notify(); return; }
+
+            Attempts++;
+            if (guess == Target)
             {
-                Message = "Введите корректное число!";
-                return;
+                Message = "Угадали!";
+                PlaySound();
             }
-
-            if (guess < 1 || guess > 100)
-            {
-                Message = "Число должно быть от 1 до 100.";
-                return;
-            }
-
-            _attempts++;
-            OnPropertyChanged(nameof(AttemptsText));
-
-            if (guess < _targetNumber)
-                Message = "Слишком маленькое.";
-            else if (guess > _targetNumber)
-                Message = "Слишком большое.";
             else
-                Message = $"Поздравляем, вы угадали за {_attempts} попыток!";
+                Message = guess < Target ? "Слишком маленькое!" : "Слишком большое!";
+
+            Notify();
         }
 
         public event PropertyChangedEventHandler PropertyChanged;
-        protected void OnPropertyChanged(string propertyName) =>
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        void Notify()
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Message)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(AttemptsText)));
+        }
     }
+
     public class RelayCommand : ICommand
     {
-        private readonly Action _execute;
-        private readonly Func<bool> _canExecute;
-
-        public RelayCommand(Action execute, Func<bool> canExecute = null)
-        {
-            _execute = execute ?? throw new ArgumentNullException(nameof(execute));
-            _canExecute = canExecute;
-        }
-
-        public bool CanExecute(object parameter) => _canExecute?.Invoke() ?? true;
-        public void Execute(object parameter) => _execute();
-
-        public event EventHandler CanExecuteChanged
-        {
-            add { CommandManager.RequerySuggested += value; }
-            remove { CommandManager.RequerySuggested -= value; }
-        }
+        Action _run;
+        public RelayCommand(Action run) { _run = run; }
+        public bool CanExecute(object p) => true;
+        public void Execute(object p) => _run();
+        public event EventHandler CanExecuteChanged { add { } remove { } }
     }
 }
